@@ -872,7 +872,24 @@ Trtdata &lt;- ddply(df, c(&quot;Family&quot;, &quot;BSpecies&quot;), summarise,
                  sd   = sd(Abundance),
                  se   = sd / sqrt(N)
 )
-Trtdata</code></pre>
+
+df2 &lt;- psmelt(FamilyAll)
+df2$Abundance&lt;-df2$Abundance*100
+FamilyAll&lt;-ddply(df2, c(&quot;Family&quot;), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+FamilySorted&lt;-FamilyAll[order(-FamilyAll$mean),]
+FamilySorted[1:5,]</code></pre>
+<pre><code>##                    Family  N    mean         sd        se
+## 29     Enterobacteriaceae 40 94.8420 18.8218170 2.9759906
+## 102 Wohlfahrtiimonadaceae 40  1.9550 12.2219154 1.9324545
+## 33             Family XII 40  1.6875 10.6726871 1.6875000
+## 82            Stappiaceae 40  0.1785  1.1289331 0.1785000
+## 32              Family XI 40  0.1370  0.8213379 0.1298649</code></pre>
+<pre class="r"><code>Trtdata</code></pre>
 <pre><code>##                   Family BSpecies  N         mean          sd           se
 ## 1       Burkholderiaceae     BAEA  1  0.000000000         NaN          NaN
 ## 2       Burkholderiaceae     BWHA  5  0.716000000  1.36838591  0.611960783
@@ -916,22 +933,6 @@ Trtdata</code></pre>
 ## 40 Wohlfahrtiimonadaceae     RSHA  1  0.160000000         NaN          NaN
 ## 41 Wohlfahrtiimonadaceae     RTHA 16  0.000000000  0.00000000  0.000000000
 ## 42 Wohlfahrtiimonadaceae     SSHA  8  0.052500000  0.08207140  0.029016621</code></pre>
-<pre class="r"><code>df2 &lt;- psmelt(FamilyAll)
-df2$Abundance&lt;-df2$Abundance*100
-FamilyAll&lt;-ddply(df2, c(&quot;Family&quot;), summarise,
-                 N    = length(Abundance),
-                 mean = mean(Abundance),
-                 sd   = sd(Abundance),
-                 se   = sd / sqrt(N)
-)
-FamilySorted&lt;-FamilyAll[order(-FamilyAll$mean),]
-FamilySorted[1:5,]</code></pre>
-<pre><code>##                    Family  N    mean         sd        se
-## 29     Enterobacteriaceae 40 94.8420 18.8218170 2.9759906
-## 102 Wohlfahrtiimonadaceae 40  1.9550 12.2219154 1.9324545
-## 33             Family XII 40  1.6875 10.6726871 1.6875000
-## 82            Stappiaceae 40  0.1785  1.1289331 0.1785000
-## 32              Family XI 40  0.1370  0.8213379 0.1298649</code></pre>
 <pre class="r"><code>FamilyAll2&lt;-ddply(df2, c(&quot;Family&quot;,&quot;BSpecies&quot;), summarise, #For Rel abu tabs
                   N    = length(Abundance),
                   mean = mean(Abundance),
@@ -1010,6 +1011,107 @@ GenusSorted[1:5,]</code></pre>
 ## 13  3.747277
 ## 60  1.715957
 ## 50  1.687500</code></pre>
+<pre class="r"><code>Trtdata</code></pre>
+<pre><code>##                                                Genus BSpecies  N
+## 1                                       Arsenophonus     BAEA  1
+## 2                                       Arsenophonus     BWHA  5
+## 3                                       Arsenophonus     COHA  7
+## 4                                       Arsenophonus     NOGO  2
+## 5                                       Arsenophonus     RSHA  1
+## 6                                       Arsenophonus     RTHA 16
+## 7                                       Arsenophonus     SSHA  8
+## 8                                    Exiguobacterium     BAEA  1
+## 9                                    Exiguobacterium     BWHA  5
+## 10                                   Exiguobacterium     COHA  7
+## 11                                   Exiguobacterium     NOGO  2
+## 12                                   Exiguobacterium     RSHA  1
+## 13                                   Exiguobacterium     RTHA 16
+## 14                                   Exiguobacterium     SSHA  8
+## 15                                   Ignatzschineria     BAEA  1
+## 16                                   Ignatzschineria     BWHA  5
+## 17                                   Ignatzschineria     COHA  7
+## 18                                   Ignatzschineria     NOGO  2
+## 19                                   Ignatzschineria     RSHA  1
+## 20                                   Ignatzschineria     RTHA 16
+## 21                                   Ignatzschineria     SSHA  8
+## 22                                         Koukoulia     BAEA  1
+## 23                                         Koukoulia     BWHA  5
+## 24                                         Koukoulia     COHA  7
+## 25                                         Koukoulia     NOGO  2
+## 26                                         Koukoulia     RSHA  1
+## 27                                         Koukoulia     RTHA 16
+## 28                                         Koukoulia     SSHA  8
+## 29                                    Pectobacterium     BAEA  1
+## 30                                    Pectobacterium     BWHA  5
+## 31                                    Pectobacterium     COHA  7
+## 32                                    Pectobacterium     NOGO  2
+## 33                                    Pectobacterium     RSHA  1
+## 34                                    Pectobacterium     RTHA 16
+## 35                                    Pectobacterium     SSHA  8
+## 36 primary endosymbiont of Pseudolynchia canariensis     BAEA  1
+## 37 primary endosymbiont of Pseudolynchia canariensis     BWHA  5
+## 38 primary endosymbiont of Pseudolynchia canariensis     COHA  7
+## 39 primary endosymbiont of Pseudolynchia canariensis     NOGO  2
+## 40 primary endosymbiont of Pseudolynchia canariensis     RSHA  1
+## 41 primary endosymbiont of Pseudolynchia canariensis     RTHA 16
+## 42 primary endosymbiont of Pseudolynchia canariensis     SSHA  8
+## 43                                       Tissierella     BAEA  1
+## 44                                       Tissierella     BWHA  5
+## 45                                       Tissierella     COHA  7
+## 46                                       Tissierella     NOGO  2
+## 47                                       Tissierella     RSHA  1
+## 48                                       Tissierella     RTHA 16
+## 49                                       Tissierella     SSHA  8
+##          mean          sd          se
+## 1   0.0000000         NaN         NaN
+## 2   0.0000000  0.00000000  0.00000000
+## 3   1.5828571  3.86851270  1.46216036
+## 4   0.0000000  0.00000000  0.00000000
+## 5   0.6600000         NaN         NaN
+## 6  10.3650000 28.41512226  7.10378057
+## 7  12.6000000 35.12218021 12.41756590
+## 8   0.0000000         NaN         NaN
+## 9  13.5000000 30.18691770 13.50000000
+## 10  0.0000000  0.00000000  0.00000000
+## 11  0.0000000  0.00000000  0.00000000
+## 12  0.0000000         NaN         NaN
+## 13  0.0000000  0.00000000  0.00000000
+## 14  0.0000000  0.00000000  0.00000000
+## 15  0.0000000         NaN         NaN
+## 16  0.0200000  0.04472136  0.02000000
+## 17  9.8314286 25.94103020  9.80478781
+## 18  0.0200000  0.02828427  0.02000000
+## 19  0.1600000         NaN         NaN
+## 20  0.0000000  0.00000000  0.00000000
+## 21  0.0525000  0.08207140  0.02901662
+## 22  0.0000000         NaN         NaN
+## 23  0.0000000  0.00000000  0.00000000
+## 24  1.0914286  2.88764857  1.09142857
+## 25  0.0000000  0.00000000  0.00000000
+## 26  0.0000000         NaN         NaN
+## 27  0.0000000  0.00000000  0.00000000
+## 28  0.0000000  0.00000000  0.00000000
+## 29 33.3600000         NaN         NaN
+## 30 11.4520000 25.49570003 11.40202368
+## 31 18.8714286 23.08084302  8.72373867
+## 32  0.3100000  0.43840620  0.31000000
+## 33 37.8800000         NaN         NaN
+## 34 19.0775000 21.97066393  5.49266598
+## 35 25.7225000 37.79430409 13.36230436
+## 36 66.5600000         NaN         NaN
+## 37 67.7040000 45.31240316 20.26432274
+## 38 66.1828571 31.30041199 11.83044372
+## 39 98.5400000  0.02828427  0.02000000
+## 40 60.6600000         NaN         NaN
+## 41 69.5037500 31.06755411  7.76688853
+## 42 60.8675000 43.88876060 15.51702012
+## 43  0.0000000         NaN         NaN
+## 44  0.0000000  0.00000000  0.00000000
+## 45  0.5885714  1.55721363  0.58857143
+## 46  0.0000000  0.00000000  0.00000000
+## 47  0.0000000         NaN         NaN
+## 48  0.0000000  0.00000000  0.00000000
+## 49  0.0000000  0.00000000  0.00000000</code></pre>
 <pre class="r"><code>GenusAll2&lt;-ddply(df2, c(&quot;Genus&quot;,&quot;BSpecies&quot;), summarise, #For Rel abu tabs
                  N    = length(Abundance),
                  mean = mean(Abundance),
@@ -1023,7 +1125,178 @@ GenusAll3&lt;-ddply(df, c(&quot;Genus&quot;,&quot;BSpecies&quot;,&quot;Month&quo
                  mean = mean(Abundance),
                  sd   = sd(Abundance),
                  se   = sd / sqrt(N)
-)</code></pre>
+)
+GenusAll3</code></pre>
+<pre><code>##                                                Genus BSpecies Month N
+## 1                                       Arsenophonus     BAEA  Sept 1
+## 2                                       Arsenophonus     BWHA  Sept 5
+## 3                                       Arsenophonus     COHA   Nov 1
+## 4                                       Arsenophonus     COHA   Oct 3
+## 5                                       Arsenophonus     COHA  Sept 3
+## 6                                       Arsenophonus     NOGO   Nov 2
+## 7                                       Arsenophonus     RSHA   Nov 1
+## 8                                       Arsenophonus     RTHA   Nov 5
+## 9                                       Arsenophonus     RTHA   Oct 2
+## 10                                      Arsenophonus     RTHA  Sept 9
+## 11                                      Arsenophonus     SSHA   Oct 2
+## 12                                      Arsenophonus     SSHA  Sept 6
+## 13                                   Exiguobacterium     BAEA  Sept 1
+## 14                                   Exiguobacterium     BWHA  Sept 5
+## 15                                   Exiguobacterium     COHA   Nov 1
+## 16                                   Exiguobacterium     COHA   Oct 3
+## 17                                   Exiguobacterium     COHA  Sept 3
+## 18                                   Exiguobacterium     NOGO   Nov 2
+## 19                                   Exiguobacterium     RSHA   Nov 1
+## 20                                   Exiguobacterium     RTHA   Nov 5
+## 21                                   Exiguobacterium     RTHA   Oct 2
+## 22                                   Exiguobacterium     RTHA  Sept 9
+## 23                                   Exiguobacterium     SSHA   Oct 2
+## 24                                   Exiguobacterium     SSHA  Sept 6
+## 25                                   Ignatzschineria     BAEA  Sept 1
+## 26                                   Ignatzschineria     BWHA  Sept 5
+## 27                                   Ignatzschineria     COHA   Nov 1
+## 28                                   Ignatzschineria     COHA   Oct 3
+## 29                                   Ignatzschineria     COHA  Sept 3
+## 30                                   Ignatzschineria     NOGO   Nov 2
+## 31                                   Ignatzschineria     RSHA   Nov 1
+## 32                                   Ignatzschineria     RTHA   Nov 5
+## 33                                   Ignatzschineria     RTHA   Oct 2
+## 34                                   Ignatzschineria     RTHA  Sept 9
+## 35                                   Ignatzschineria     SSHA   Oct 2
+## 36                                   Ignatzschineria     SSHA  Sept 6
+## 37                                         Koukoulia     BAEA  Sept 1
+## 38                                         Koukoulia     BWHA  Sept 5
+## 39                                         Koukoulia     COHA   Nov 1
+## 40                                         Koukoulia     COHA   Oct 3
+## 41                                         Koukoulia     COHA  Sept 3
+## 42                                         Koukoulia     NOGO   Nov 2
+## 43                                         Koukoulia     RSHA   Nov 1
+## 44                                         Koukoulia     RTHA   Nov 5
+## 45                                         Koukoulia     RTHA   Oct 2
+## 46                                         Koukoulia     RTHA  Sept 9
+## 47                                         Koukoulia     SSHA   Oct 2
+## 48                                         Koukoulia     SSHA  Sept 6
+## 49                                    Pectobacterium     BAEA  Sept 1
+## 50                                    Pectobacterium     BWHA  Sept 5
+## 51                                    Pectobacterium     COHA   Nov 1
+## 52                                    Pectobacterium     COHA   Oct 3
+## 53                                    Pectobacterium     COHA  Sept 3
+## 54                                    Pectobacterium     NOGO   Nov 2
+## 55                                    Pectobacterium     RSHA   Nov 1
+## 56                                    Pectobacterium     RTHA   Nov 5
+## 57                                    Pectobacterium     RTHA   Oct 2
+## 58                                    Pectobacterium     RTHA  Sept 9
+## 59                                    Pectobacterium     SSHA   Oct 2
+## 60                                    Pectobacterium     SSHA  Sept 6
+## 61 primary endosymbiont of Pseudolynchia canariensis     BAEA  Sept 1
+## 62 primary endosymbiont of Pseudolynchia canariensis     BWHA  Sept 5
+## 63 primary endosymbiont of Pseudolynchia canariensis     COHA   Nov 1
+## 64 primary endosymbiont of Pseudolynchia canariensis     COHA   Oct 3
+## 65 primary endosymbiont of Pseudolynchia canariensis     COHA  Sept 3
+## 66 primary endosymbiont of Pseudolynchia canariensis     NOGO   Nov 2
+## 67 primary endosymbiont of Pseudolynchia canariensis     RSHA   Nov 1
+## 68 primary endosymbiont of Pseudolynchia canariensis     RTHA   Nov 5
+## 69 primary endosymbiont of Pseudolynchia canariensis     RTHA   Oct 2
+## 70 primary endosymbiont of Pseudolynchia canariensis     RTHA  Sept 9
+## 71 primary endosymbiont of Pseudolynchia canariensis     SSHA   Oct 2
+## 72 primary endosymbiont of Pseudolynchia canariensis     SSHA  Sept 6
+## 73                                       Tissierella     BAEA  Sept 1
+## 74                                       Tissierella     BWHA  Sept 5
+## 75                                       Tissierella     COHA   Nov 1
+## 76                                       Tissierella     COHA   Oct 3
+## 77                                       Tissierella     COHA  Sept 3
+## 78                                       Tissierella     NOGO   Nov 2
+## 79                                       Tissierella     RSHA   Nov 1
+## 80                                       Tissierella     RTHA   Nov 5
+## 81                                       Tissierella     RTHA   Oct 2
+## 82                                       Tissierella     RTHA  Sept 9
+## 83                                       Tissierella     SSHA   Oct 2
+## 84                                       Tissierella     SSHA  Sept 6
+##           mean          sd          se
+## 1   0.00000000         NaN         NaN
+## 2   0.00000000  0.00000000  0.00000000
+## 3   0.04000000         NaN         NaN
+## 4   3.44666667  5.96980178  3.44666667
+## 5   0.23333333  0.35345910  0.20406970
+## 6   0.00000000  0.00000000  0.00000000
+## 7   0.66000000         NaN         NaN
+## 8  15.08000000 33.68637410 15.06500448
+## 9   0.00000000  0.00000000  0.00000000
+## 10 10.04888889 30.09418235 10.03139412
+## 11  0.44000000  0.62225397  0.44000000
+## 12 16.65333333 40.59624942 16.57334942
+## 13  0.00000000         NaN         NaN
+## 14 13.50000000 30.18691770 13.50000000
+## 15  0.00000000         NaN         NaN
+## 16  0.00000000  0.00000000  0.00000000
+## 17  0.00000000  0.00000000  0.00000000
+## 18  0.00000000  0.00000000  0.00000000
+## 19  0.00000000         NaN         NaN
+## 20  0.00000000  0.00000000  0.00000000
+## 21  0.00000000  0.00000000  0.00000000
+## 22  0.00000000  0.00000000  0.00000000
+## 23  0.00000000  0.00000000  0.00000000
+## 24  0.00000000  0.00000000  0.00000000
+## 25  0.00000000         NaN         NaN
+## 26  0.02000000  0.04472136  0.02000000
+## 27  0.16000000         NaN         NaN
+## 28 22.88666667 39.64086948 22.88666667
+## 29  0.00000000  0.00000000  0.00000000
+## 30  0.02000000  0.02828427  0.02000000
+## 31  0.16000000         NaN         NaN
+## 32  0.00000000  0.00000000  0.00000000
+## 33  0.00000000  0.00000000  0.00000000
+## 34  0.00000000  0.00000000  0.00000000
+## 35  0.11000000  0.15556349  0.11000000
+## 36  0.03333333  0.05316641  0.02170509
+## 37  0.00000000         NaN         NaN
+## 38  0.00000000  0.00000000  0.00000000
+## 39  0.00000000         NaN         NaN
+## 40  2.54666667  4.41095606  2.54666667
+## 41  0.00000000  0.00000000  0.00000000
+## 42  0.00000000  0.00000000  0.00000000
+## 43  0.00000000         NaN         NaN
+## 44  0.00000000  0.00000000  0.00000000
+## 45  0.00000000  0.00000000  0.00000000
+## 46  0.00000000  0.00000000  0.00000000
+## 47  0.00000000  0.00000000  0.00000000
+## 48  0.00000000  0.00000000  0.00000000
+## 49 33.36000000         NaN         NaN
+## 50 11.45200000 25.49570003 11.40202368
+## 51 33.86000000         NaN         NaN
+## 52 10.54666667 18.26736252 10.54666667
+## 53 22.20000000 32.11820667 18.54345527
+## 54  0.31000000  0.43840620  0.31000000
+## 55 37.88000000         NaN         NaN
+## 56 25.17200000 30.52748794 13.65230764
+## 57  8.46000000 11.90767820  8.42000000
+## 58 18.05111111 19.20445811  6.40148604
+## 59  0.06000000  0.02828427  0.02000000
+## 60 34.27666667 40.60220372 16.57578026
+## 61 66.56000000         NaN         NaN
+## 62 67.70400000 45.31240316 20.26432274
+## 63 65.80000000         NaN         NaN
+## 64 56.18000000 40.73180084 23.51651618
+## 65 76.31333333 31.24050149 18.03671194
+## 66 98.54000000  0.02828427  0.02000000
+## 67 60.66000000         NaN         NaN
+## 68 59.59200000 38.36040042 17.15529259
+## 69 91.31000000 11.75211470  8.31000000
+## 70 70.16444444 29.59631021  9.86543674
+## 71 98.93000000  1.25865007  0.89000000
+## 72 48.18000000 43.86031281 17.90589772
+## 73  0.00000000         NaN         NaN
+## 74  0.00000000  0.00000000  0.00000000
+## 75  0.00000000         NaN         NaN
+## 76  1.37333333  2.37868311  1.37333333
+## 77  0.00000000  0.00000000  0.00000000
+## 78  0.00000000  0.00000000  0.00000000
+## 79  0.00000000         NaN         NaN
+## 80  0.00000000  0.00000000  0.00000000
+## 81  0.00000000  0.00000000  0.00000000
+## 82  0.00000000  0.00000000  0.00000000
+## 83  0.00000000  0.00000000  0.00000000
+## 84  0.00000000  0.00000000  0.00000000</code></pre>
 <pre class="r"><code>NComparisons&lt;-length(unique(metadata$BSpecies))*length(unique(Trtdata$Genus))
 SigList&lt;-length(unique(Trtdata$Genus))
 SigLetters2&lt;-vector(length=NComparisons)

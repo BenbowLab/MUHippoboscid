@@ -373,7 +373,7 @@ Trtdata <- ddply(df, c("Family", "BSpecies"), summarise,
                  sd   = sd(Abundance),
                  se   = sd / sqrt(N)
 )
-Trtdata
+
 df2 <- psmelt(FamilyAll)
 df2$Abundance<-df2$Abundance*100
 FamilyAll<-ddply(df2, c("Family"), summarise,
@@ -384,7 +384,7 @@ FamilyAll<-ddply(df2, c("Family"), summarise,
 )
 FamilySorted<-FamilyAll[order(-FamilyAll$mean),]
 FamilySorted[1:5,]
-
+Trtdata
 FamilyAll2<-ddply(df2, c("Family","BSpecies"), summarise, #For Rel abu tabs
                   N    = length(Abundance),
                   mean = mean(Abundance),
@@ -459,7 +459,7 @@ GenusAll<-ddply(df2, c("Genus"), summarise,
 )
 GenusSorted<-GenusAll[order(-GenusAll$mean),]
 GenusSorted[1:5,]
-
+Trtdata
 GenusAll2<-ddply(df2, c("Genus","BSpecies"), summarise, #For Rel abu tabs
                  N    = length(Abundance),
                  mean = mean(Abundance),
@@ -474,6 +474,7 @@ GenusAll3<-ddply(df, c("Genus","BSpecies","Month"), summarise, #For Rel abu tabs
                  sd   = sd(Abundance),
                  se   = sd / sqrt(N)
 )
+GenusAll3
 ```
 
 ```{r TreatmentPlot4,warning=FALSE}
