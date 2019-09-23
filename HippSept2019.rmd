@@ -1,0 +1,774 @@
+---
+title: "Hipps9.20.2019"
+author: "JReceveur"
+output: 
+  html_document:
+    code_folding: hide
+toc: true
+toc_depth: 3
+toc_float: true
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=14, fig.height=10)
+knitr::opts_chunk$set(fig.align="center")
+```
+```{r}
+#From https://gist.github.com/grabear/018e86413b19b62a6bb8e72a9adba349
+#Parse Silva function
+parse_taxonomy_silva_128 <- function(char.vec){
+  # Use default to assign names to elements in case problem with greengenes prefix
+  char.vec = parse_taxonomy_default(char.vec)
+  # Check for unassigned taxa
+  if (char.vec["Rank1"] == "Unassigned") {
+    char.vec <- c(Rank1="D_0__Unassigned", Rank2="D_1__Unassigned", Rank3="D_2__Unassigned", Rank4="D_3__Unassigned",
+                  Rank5="D_4__Unassigned", Rank6="D_5__Unassigned", Rank7="D_6__Unassigned")
+  }
+  # Define the meaning of each prefix according to SILVA taxonomy
+  Tranks = c(D_0="Kingdom", D_1="Phylum", D_2="Class", D_3="Order", D_4="Family", D_5="Genus", D_6="Species")
+  # Check for prefix using regexp, warn if there were none. trim indices, ti
+  ti = grep("[[:alpha:]]\\_[[:digit:]]{1}\\_\\_", char.vec)
+  if( length(ti) == 0L ){
+    warning(
+      "No silva prefixes were found. \n",
+      "Consider using parse_taxonomy_delfault() instead if true for all OTUs. \n",
+      "Dummy ranks may be included among taxonomic ranks now."
+    )
+    # Will want to return without further modifying char.vec
+    taxvec = char.vec
+    # Replace names of taxvec according to prefix, if any present...
+  } else {
+    # Format character vectors for Ambiguous taxa
+    if( length(ti) < 7 ){
+      for (key in names(char.vec)) {
+        if ( char.vec[key] == "Ambiguous_taxa" ) {
+          tax_no <- (as.numeric(substr(key, 5, 5)) - 1)
+          char.vec[key] = sprintf("D_%s__Ambiguous_taxa", tax_no)
+        }
+      }
+      # Reset the trimmed indicies if Ambiguous taxa
+      ti = grep("[[:alpha:]]\\_[[:digit:]]{1}\\_\\_", char.vec)
+    }
+    # Remove prefix using sub-"" regexp, call result taxvec
+    taxvec = gsub("[[:alpha:]]\\_[[:digit:]]{1}\\_\\_", "", char.vec)
+    # Define the ranks that will be replaced
+    repranks = Tranks[substr(char.vec[ti], 1, 3)]
+    # Replace, being sure to avoid prefixes notK present in Tranks
+    names(taxvec)[ti[!is.na(repranks)]] = repranks[!is.na(repranks)]
+  }
+  return(taxvec)
+}
+
+```
+
+```{r ,warning=FALSE,include=FALSE}
+library(vegan)
+library(MASS)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(magrittr)
+library(scales)
+library(grid)
+library(reshape2)
+library(phyloseq)
+library(randomForest)
+library(knitr)
+library(ape)
+library(ggpubr)
+library(agricolae)
+library(Rmisc)
+library(multcompView)
+set.seed(1256)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#000000","#CC79A7")
+theme_set(theme_bw(base_size = 18)+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()))
+biom=import_biom("HippoWTax9.18.19.biom",parseFunction= parse_taxonomy_silva_128)
+#tax_table(biom) <- tax_table(biom)[,-c(5:10,14)]#remove dummy ranks
+
+metadata=read.table("HippoMetadataWDiversity9.18.19.tsv",header = TRUE)
+#metadata$BSpecies = factor(metadata$BSpecies, levels = c("SubmergedFresh","EarlyFloating","Floatingdecay","Advancedfloatingdecay","SunkenRemains")) #fixes x-axis labels
+
+tree=read_tree("tree9.18.19.nwk")
+
+sampdat=sample_data(metadata)
+sample_names(sampdat)=metadata$id
+physeq=merge_phyloseq(biom,sampdat,tree)
+#physeq=rarefy_even_depth(physeq, 5000, replace = TRUE, trimOTUs = TRUE, verbose = TRUE,rngseed = TRUE) Rarefied to ____ in QIIME
+```
+
+
+
+##Data overview{.tabset}
+###Sequencing
+```{r}
+physeq
+
+Trtdata <- ddply(metadata, c("BSpecies","Month"), summarise,
+                 N    = length(id),
+)
+Trtdata
+
+head(metadata)
+```
+
+###Metadata
+```{r}
+metadata
+
+```
+
+
+
+##Alpha Diversity {.tabset}
+###Observed Species BSpecies
+
+```{r}
+plot_richness(physeq, x="BSpecies",color="BSpecies", measures=c("Observed"))+geom_boxplot(aes(x=BSpecies, y=value, color=BSpecies), alpha=0.05)+ylab("Observed Species")+geom_point(size=3)+guides(fill=FALSE)
+
+```
+
+###Shannon Diversity BSpecies
+```{r}
+#By Year
+kruskal.test( shannon~ BSpecies, data=metadata)
+
+#By species
+av=kruskal.test( shannon~ BSpecies, data=metadata) #fig.width = 8, fig.height = 8 for line above to change size
+posthoc<-compare_means(shannon ~ BSpecies, data = metadata, p.adjust.method = "fdr")
+
+
+Hyphenated<-as.character(paste0(posthoc$group1,"-",posthoc$group2))
+difference<-posthoc$p.format
+names(difference)<-Hyphenated
+
+Letters<-multcompLetters(difference)
+
+#posthoc <- HSD.test(av,"BSpecies",group=TRUE)
+
+stats<-summarySE(metadata,measurevar="shannon",groupvars=c("BSpecies",na.rm=TRUE))
+ggplot(stats,aes(x=BSpecies,y=shannon,fill=BSpecies))+geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=shannon-se,ymax=shannon+se),color="black")+
+  geom_text(aes(x=BSpecies, y=shannon+se+0.5,label=Letters$Letters), position=position_dodge(width=0.9), size=8,color="black")+ #Write in labels from posthoc
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)+xlab("")+ylab("Shannon Diversity")+labs(fill="Decomposition Stage")+guides(fill=FALSE)#+ theme(legend.justification=c(0.05,0.95), legend.position=c(0.05,0.95))
+
+av
+posthoc
+Letters
+stats
+
+```
+
+###Faith's PD BSpecies
+```{r, FaithPD}
+#By year
+kruskal.test( faith_pd~ BSpecies, data=metadata)
+#By species
+av=kruskal.test( faith_pd~ BSpecies, data=metadata) #fig.width = 8, fig.height = 8 for line above to change size
+posthoc<-compare_means(faith_pd ~ BSpecies, data = metadata, p.adjust.method = "fdr")
+
+
+
+Hyphenated<-as.character(paste0(posthoc$group1,"-",posthoc$group2))
+difference<-posthoc$p.format
+names(difference)<-Hyphenated
+
+Letters<-multcompLetters(difference)
+stats<-summarySE(metadata,measurevar="faith_pd",groupvars=c("BSpecies",na.rm=TRUE))
+ggplot(stats,aes(x=BSpecies,y=faith_pd,fill=BSpecies))+geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=faith_pd-se,ymax=faith_pd+se),color="black")+
+  geom_text(aes(x=BSpecies, y=faith_pd+se+0.5,label=Letters$Letters), position=position_dodge(width=0.9), size=8,color="black")+ guides(fill=FALSE)+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)+xlab("")+ylab("Faith's PD")+labs(fill="Decomposition Stage")#+ theme(legend.justification=c(0.05,0.95), legend.position=c(0.05,0.95))
+
+av
+posthoc
+Letters
+stats
+
+
+```
+
+###RTHA subset
+```{r}
+RTHA<-subset(metadata,BSpecies=="RTHA")
+kruskal.test( faith_pd~ Month, data=RTHA)
+kruskal.test( shannon~ Month, data=RTHA)
+
+kruskal.test( faith_pd~ Year, data=RTHA)
+
+
+kruskal.test( shannon~ Year, data=RTHA)
+
+
+
+```
+###Observed Species Month
+
+```{r}
+plot_richness(physeq, x="Month",color="Month", measures=c("Observed"))+geom_boxplot(aes(x=Month, y=value, color=Month), alpha=0.05)+ylab("Observed Month")+geom_point(size=3)+guides(fill=FALSE)
+
+```
+
+###Shannon Diversity Month
+```{r}
+av=kruskal.test( shannon~ Month, data=metadata) #fig.width = 8, fig.height = 8 for line above to change size
+posthoc<-compare_means(shannon ~ Month, data = metadata, p.adjust.method = "fdr")
+
+
+Hyphenated<-as.character(paste0(posthoc$group1,"-",posthoc$group2))
+difference<-posthoc$p.format
+names(difference)<-Hyphenated
+
+Letters<-multcompLetters(difference)
+
+#posthoc <- HSD.test(av,"Month",group=TRUE)
+
+stats<-summarySE(metadata,measurevar="shannon",groupvars=c("Month",na.rm=TRUE))
+ggplot(stats,aes(x=Month,y=shannon,fill=Month))+geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=shannon-se,ymax=shannon+se),color="black")+
+  geom_text(aes(x=Month, y=shannon+se+.5,label=Letters$Letters), position=position_dodge(width=0.9), size=8,color="black")+ #Write in labels from posthoc
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)+xlab("")+ylab("Shannon Diversity")+labs(fill="Decomposition Stage")+guides(fill=FALSE)#+ theme(legend.justification=c(0.05,0.95), legend.position=c(0.05,0.95))
+
+av
+posthoc
+Letters
+stats
+
+```
+
+###Faith's PD Month
+```{r, FaithPD2}
+av=kruskal.test( faith_pd~ Month, data=metadata) #fig.width = 8, fig.height = 8 for line above to change size
+posthoc<-compare_means(faith_pd ~ Month, data = metadata, p.adjust.method = "fdr")
+
+
+Hyphenated<-as.character(paste0(posthoc$group1,"-",posthoc$group2))
+difference<-posthoc$p.format
+names(difference)<-Hyphenated
+
+Letters<-multcompLetters(difference)
+stats<-summarySE(metadata,measurevar="faith_pd",groupvars=c("Month",na.rm=TRUE))
+ggplot(stats,aes(x=Month,y=faith_pd,fill=Month))+geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=faith_pd-se,ymax=faith_pd+se),color="black")+
+  geom_text(aes(x=Month, y=faith_pd+se+0.5,label=Letters$Letters), position=position_dodge(width=0.9), size=8,color="black")+ guides(fill=FALSE)+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)+xlab("")+ylab("Faith's PD")+labs(fill="Decomposition Stage")#+ theme(legend.justification=c(0.05,0.95), legend.position=c(0.05,0.95))
+
+av
+posthoc
+Letters
+stats
+
+
+```
+
+
+
+##Taxa Plots {.tabset}
+
+```{r filteringForFamily2}
+
+
+GPr  = transform_sample_counts(physeq, function(x) x / sum(x) ) #transform samples based on relative abundance
+PhylumAll=tax_glom(GPr, "Phylum")
+
+PhylumLevel = filter_taxa(PhylumAll, function(x) mean(x) > 1e-4, TRUE) #filter out any taxa lower tha 0.1%
+FamilyAll=tax_glom(GPr,"Family")
+FamilyLevel = filter_taxa(FamilyAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 1%
+GenusAll=tax_glom(GPr,"Genus")
+GenusLevel = filter_taxa(GenusAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 1%
+
+plot_bar(PhylumLevel,x="id", y="Abundance",fill="Phylum")+ scale_fill_manual(values=cbPalette)+xlab("Sample ID")+ylab("Relative Abundance (>0.01%)")
+
+plot_bar(FamilyLevel,x="id", y="Abundance",fill="Family")+ scale_fill_manual(values=cbPalette)+xlab("Sample ID")+ylab("Relative Abundance (>0.1%)")
+
+plot_bar(GenusLevel,x="id", y="Abundance",fill="Genus")+ scale_fill_manual(values=cbPalette)+xlab("Sample ID")+ylab("Relative Abundance (>0.1%)")
+
+
+```
+
+###Phylum Level
+
+
+The top 5 phyla across all samples are given in the table below
+```{r PhylumRA, warning=FALSE}
+df <- psmelt(PhylumLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Phylum", "BSpecies"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+df2 <- psmelt(PhylumAll)
+df2$Abundance<-df2$Abundance*100
+PhylumAll<-ddply(df2, c("Phylum"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+PhylumSorted<-PhylumAll[order(-PhylumAll$mean),]
+PhylumSorted[1:5,]
+
+PhylumAll2<-ddply(df2, c("Phylum","BSpecies"), summarise, #For Rel abu tabs
+                  N    = length(Abundance),
+                  mean = mean(Abundance),
+                  sd   = sd(Abundance),
+                  se   = sd / sqrt(N)
+)
+PhylumSorted2<-PhylumAll2[order(-PhylumAll$mean),]
+
+PhylumAll3<-ddply(df, c("Phylum","Month","BSpecies"), summarise, #For Rel abu tabs
+                  N    = length(Abundance),
+                  mean = mean(Abundance),
+                  sd   = sd(Abundance),
+                  se   = sd / sqrt(N)
+)
+
+```
+
+
+
+```{r TreatmentPlot5}
+cdataplot=ggplot(Trtdata, aes(x=BSpecies,y=mean))+geom_bar(aes(fill = Phylum),colour="black", stat="identity")+xlab("Bird Species")+ylab("Relative Abundance (> 0.01%)")+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)
+cdataplot#+  scale_x_discrete(labels=c("0 hrs", "24 hrs", "48 hrs","72 hrs"))
+#position = "fill"#+geom_errorbar(aes(ymin=mean-se,ymax=mean+se),color="black",width=1)+geom_line(size=1.5,linetype="dashed")+geom_point(size=6)+ylab(
+cdataplot=ggplot(PhylumAll3, aes(x=Month,y=mean))+geom_bar(aes(fill = Phylum),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.01%)")+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+facet_wrap(~BSpecies)+ scale_fill_manual(values=cbPalette)
+cdataplot
+```
+
+```{r,warning=FALSE}
+#SigLetters<-c("a","ab","a","bc","c","a","a","b","b","b","ab","c","ac","bd","d","abc","a","ab", "bc","c","ab","a","b","b","c","ab","ab","a","ab","b","ab","a","bc","c","c","ab","a","ab","bc","c")#Taken from output 
+NComparisons<-length(unique(metadata$BSpecies))*length(unique(Trtdata$Phylum))
+SigList<-length(unique(Trtdata$Phylum))
+SigLetters2<-vector(length=NComparisons)
+#vec<-unlist(lst)
+Means=compare_means(Abundance ~ BSpecies, data = df, group.by = "Phylum", p.adjust.method = "fdr")
+for (i in levels(Means$Phylum)){
+  Tax<-i
+  TaxAbundance<-subset(Means,Phylum==i )
+  Hyphenated<-as.character(paste0(TaxAbundance$group1,"-",TaxAbundance$group2))
+  difference<-TaxAbundance$p.adj
+  names(difference)<-Hyphenated
+  Letters<-multcompLetters(difference)
+  #print(Letters)
+  SigList[i]<-Letters
+  
+}
+vec<-unlist(SigList)
+vec<-vec[-1]
+
+cdataplot=ggplot(Trtdata, aes(x=BSpecies,y=mean))+geom_bar(aes(fill = BSpecies),colour="black", stat="identity")+ facet_grid(~Phylum)+xlab("Bird Species")+ylab("Relative Abundance (> 0.01%)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))+theme(axis.title.x=element_blank())+facet_wrap(~Phylum)+geom_errorbar(aes(ymin=mean-se,ymax=mean+se))+geom_text(aes(x=BSpecies, y=mean+se+10,label=vec))+ scale_fill_manual(values=cbPalette)
+#scale_x_discrete(labels=c("0 hrs", "24 hrs", "48 hrs","72 hrs"))+ theme(axis.text.x = element_text(angle = 45, hjust = 1))#+ scale_fill_manual(values=cbPalette)
+cdataplot
+```
+
+
+###Family Level
+
+The top 5 Families across all samples are given in the table below
+```{r Summarizing2,warning=FALSE}
+df <- psmelt(FamilyLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Family", "BSpecies"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+Trtdata
+df2 <- psmelt(FamilyAll)
+df2$Abundance<-df2$Abundance*100
+FamilyAll<-ddply(df2, c("Family"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+FamilySorted<-FamilyAll[order(-FamilyAll$mean),]
+FamilySorted[1:5,]
+
+FamilyAll2<-ddply(df2, c("Family","BSpecies"), summarise, #For Rel abu tabs
+                  N    = length(Abundance),
+                  mean = mean(Abundance),
+                  sd   = sd(Abundance),
+                  se   = sd / sqrt(N)
+)
+FamilySorted2<-FamilyAll2[order(-FamilyAll$mean),]
+
+FamilyAll3<-ddply(df, c("Family","Month","BSpecies"), summarise, #For Rel abu tabs
+                  N    = length(Abundance),
+                  mean = mean(Abundance),
+                  sd   = sd(Abundance),
+                  se   = sd / sqrt(N)
+)
+```
+
+
+
+
+```{r TreatmentPlot,warning=FALSE}
+cdataplot=ggplot(Trtdata, aes(x=BSpecies,y=mean))+geom_bar(aes(fill = Family),colour="black", stat="identity")+xlab("BSpecies")+ylab("Relative Abundance (> 0.1%)")+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)
+cdataplot#+  scale_x_discrete(labels=c("0 hrs", "24 hrs", "48 hrs","72 hrs"))
+cdataplot=ggplot(FamilyAll3, aes(x=Month,y=mean))+geom_bar(aes(fill = Family),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)")+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+facet_wrap(~BSpecies)+ scale_fill_manual(values=cbPalette)
+cdataplot
+#position = "fill"#+geom_errorbar(aes(ymin=mean-se,ymax=mean+se),color="black",width=1)+geom_line(size=1.5,linetype="dashed")+geom_point(size=6)+ylab(
+
+NComparisons<-length(unique(metadata$BSpecies))*length(unique(Trtdata$Family))
+SigList<-length(unique(Trtdata$Family))
+SigLetters2<-vector(length=NComparisons)
+#vec<-unlist(lst)
+Means=compare_means(Abundance ~ BSpecies, data = df, group.by = "Family", p.adjust.method = "fdr")
+for (i in levels(Means$Family)){
+  Tax<-i
+  TaxAbundance<-subset(Means,Family==i )
+  Hyphenated<-as.character(paste0(TaxAbundance$group1,"-",TaxAbundance$group2))
+  difference<-TaxAbundance$p.adj
+  names(difference)<-Hyphenated
+  Letters<-multcompLetters(difference)
+  #print(Letters)
+  SigList[i]<-Letters
+  
+}
+vec<-unlist(SigList)
+vec<-vec[-1]
+
+cdataplot=ggplot(Trtdata, aes(x=BSpecies,y=mean))+geom_bar(aes(fill = BSpecies),colour="black", stat="identity")+ facet_grid(~Family)+xlab("Bird Species")+ylab("Relative Abundance (0.1%)") + theme(axis.text.x = element_text(angle = 45, hjust = 1))+theme(axis.title.x=element_blank())+facet_wrap(~Family)+geom_errorbar(aes(ymin=mean-se,ymax=mean+se))+geom_text(aes(x=BSpecies, y=mean+se+5,label=vec))+scale_fill_manual(values=cbPalette)
+cdataplot
+
+
+```
+
+
+
+###Genus level
+The top 5 genera across all samples are given in the table below
+```{r Summarizing3,warning=FALSE}
+df <- psmelt(GenusLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Genus", "BSpecies"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+df2 <- psmelt(GenusAll)
+df2$Abundance<-df2$Abundance*100
+GenusAll<-ddply(df2, c("Genus"), summarise,
+                N    = length(Abundance),
+                mean = mean(Abundance),
+                sd   = sd(Abundance),
+                se   = sd / sqrt(N)
+)
+GenusSorted<-GenusAll[order(-GenusAll$mean),]
+GenusSorted[1:5,]
+
+GenusAll2<-ddply(df2, c("Genus","BSpecies"), summarise, #For Rel abu tabs
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+GenusSorted2<-GenusAll2[order(-GenusAll$mean),]
+
+GenusAll3<-ddply(df, c("Genus","BSpecies","Month"), summarise, #For Rel abu tabs
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+```
+
+```{r TreatmentPlot4,warning=FALSE}
+NComparisons<-length(unique(metadata$BSpecies))*length(unique(Trtdata$Genus))
+SigList<-length(unique(Trtdata$Genus))
+SigLetters2<-vector(length=NComparisons)
+
+Means=compare_means(Abundance ~ BSpecies, data = df, group.by = "Genus", p.adjust.method = "fdr")
+#vec<-unlist(lst)
+for (i in levels(Means$Genus)){
+  Tax<-i
+  TaxAbundance<-subset(Means,Genus==i )
+  #print(TaxAbundance)
+  Hyphenated<-as.character(paste0(TaxAbundance$group1,"-",TaxAbundance$group2))
+  difference<-TaxAbundance$p.adj
+  names(difference)<-Hyphenated
+  Letters<-multcompLetters(difference)
+  #print(Letters)
+  SigList[i]<-Letters
+  
+}
+vec<-unlist(SigList)
+vec<-vec[-1]
+cdataplot=ggplot(Trtdata, aes(x=BSpecies,y=mean))+geom_bar(aes(fill = Genus),colour="black", stat="identity")+xlab("Bird BSpecies")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+ scale_fill_manual(values=cbPalette)#+geom_text(aes(x=BSpecies, y=mean+se+10,label=vec))
+cdataplot#+  scale_x_discrete(labels=c("0 hrs", "24 hrs", "48 hrs","72 hrs"))
+
+cdataplot=ggplot(GenusAll3, aes(x=Month,y=mean))+geom_bar(aes(fill = Genus),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+facet_wrap(~BSpecies)+ scale_fill_manual(values=cbPalette)#+geom_text(aes(x=BSpecies, y=mean+se+10,label=vec))
+cdataplot#+  scale_x_discrete(labels=c("0 hrs", "24 hrs", "48 hrs","72 
+
+#position = "fill"#+geom_errorbar(aes(ymin=mean-se,ymax=mean+se),color="black",width=1)+geom_line(size=1.5,linetype="dashed")+geom_point(size=6)+ylab(
+
+#+ theme(axis.text.x = element_text(angle = 45, hjust = 1))#+ scale_fill_manual(values=cbPalette)
+compare_means(Abundance~BSpecies, data=df,group.by="Genus",method = "kruskal.test",p.adjust.method="fdr")
+
+Means=compare_means(Abundance ~ BSpecies, data = df, 
+                    group.by = "Genus", p.adjust.method = "fdr")
+# #head(Means)
+# keeps <- c("Genus","group1","group2","p.adj","method","p.signif")
+# keeps=Means[keeps]
+# #keeps
+# 
+# 
+# test3 <- list('Genus'= keeps$Genus,'group1'=keeps$group1,'group2'= keeps$group2,'p.adj'=keeps$p.adj)
+# test3= as.data.frame(test3)
+# #test3
+# FilteredResults<-test3[!(test3$p.adj>0.05),]            
+# FilteredResults
+
+```
+
+
+
+###PhylumAbuAll
+
+Below is a list of the relative abundance of all taxa at the Phylum level by BSpecies
+```{r}
+df <- psmelt(PhylumLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Phylum", "BSpecies"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+
+```
+
+```{r}
+compare_means(Abundance~BSpecies, data=df,group.by="Phylum",method = "kruskal.test",p.adjust.method="fdr")
+Means=compare_means(Abundance ~ BSpecies, data = df, 
+                    group.by = "Phylum", p.adjust.method = "fdr")
+
+```
+
+Multiple comparisons for all taxa grouped by Phylum
+```{r}
+
+NComparisons<-length(unique(metadata$BSpecies))*length(unique(Trtdata$Phylum))
+SigList<-length(unique(Trtdata$Phylum))
+SigLetters2<-vector(length=NComparisons)
+#vec<-unlist(lst)
+for (i in levels(Means$Phylum)){
+  Tax<-i
+  TaxAbundance<-subset(Means,Phylum==i )
+  print(TaxAbundance)
+  Hyphenated<-as.character(paste0(TaxAbundance$group1,"-",TaxAbundance$group2))
+  difference<-TaxAbundance$p.adj
+  names(difference)<-Hyphenated
+  Letters<-multcompLetters(difference)
+  print(Letters)
+  
+}
+
+
+```
+
+###FamilyAbuAll
+Below is a list of the relative abundance of all taxa at the Family level by BSpecies
+```{r}
+df <- psmelt(FamilyLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Family", "BSpecies"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+
+```
+
+```{r}
+compare_means(Abundance~BSpecies, data=df,group.by="Family",method = "kruskal.test",p.adjust.method="fdr")
+Means=compare_means(Abundance ~ BSpecies, data = df, 
+                    group.by = "Family", p.adjust.method = "fdr")
+
+```
+
+Multiple comparisons for all taxa grouped by Family
+```{r}
+
+NComparisons<-length(unique(metadata$BSpecies))*length(unique(Trtdata$Family))
+SigList<-length(unique(Trtdata$Family))
+SigLetters2<-vector(length=NComparisons)
+#vec<-unlist(lst)
+for (i in levels(Means$Family)){
+  Tax<-i
+  TaxAbundance<-subset(Means,Family==i )
+  print(TaxAbundance)
+  Hyphenated<-as.character(paste0(TaxAbundance$group1,"-",TaxAbundance$group2))
+  difference<-TaxAbundance$p.adj
+  names(difference)<-Hyphenated
+  Letters<-multcompLetters(difference)
+  print(Letters)
+  
+}
+
+
+
+```
+
+###GenusAbuAll
+
+Below is a list of the relative abundance of all taxa at the Genus level by BSpecies
+```{r}
+GenusSorted2
+```
+
+
+
+
+##PCoA {.tabset}
+
+###Weighted Unifrac
+-Ellipses represent 95% CI for the mean of each group
+```{r PCoA, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "wunifrac")
+ordplot=plot_ordination(physeq, ord,"samples", color="BSpecies")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = BSpecies))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+```{r PCoA2, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "wunifrac")
+ordplot=plot_ordination(physeq, ord,"samples", color="Month")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = Month))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+###Jaccard
+-Ellipses represent 95% CI for the mean of each group
+```{r PCoA3, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "jaccard")
+ordplot=plot_ordination(physeq, ord,"samples", color="BSpecies")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = BSpecies))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+```{r PCoA4, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "jaccard")
+ordplot=plot_ordination(physeq, ord,"samples", color="Month")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = Month))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+###Bray-curtis
+-Ellipses represent 95% CI for the mean of each group
+```{r PCoA5, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "bray")
+ordplot=plot_ordination(physeq, ord,"samples", color="BSpecies")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = BSpecies))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+```{r PCoA6, warning=FALSE}
+ord=ordinate(physeq,"PCoA", "bray")
+ordplot=plot_ordination(physeq, ord,"samples", color="Month")+geom_point(size=4)+scale_colour_manual(values=cbPalette)+scale_fill_manual(values=cbPalette)
+ordplot+ stat_ellipse(type= "norm",geom = "polygon", alpha = 1/4, aes(fill = Month))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())#+ theme(legend.justification=c(1,0), legend.position=c(1,0))
+
+```
+
+##PERMANOVAs {.tabset}
+###Weighted Unifrac
+####Homogenieity of Multivariate Dispersions
+```{r, warning=FALSE}
+GPdist=phyloseq::distance(physeq, "wunifrac")
+beta=betadisper(GPdist, sample_data(physeq)$BSpecies)
+permutest(beta)
+boxplot(beta)
+```
+
+
+``` {r wunifracPERMANOVAs,warning=FALSE}
+GPdist=phyloseq::distance(physeq, "wunifrac")
+#MONMDS= ordinate(physeq, "NMDS",GPdist)
+```
+
+```{r}
+adonis(GPdist ~ BSpecies*Month, as(sample_data(physeq), "data.frame"))
+```
+
+
+###Jaccard
+####Homogenieity of Multivariate Dispersions
+```{r, warning=FALSE}
+GPdist=phyloseq::distance(physeq, "jaccard")
+beta=betadisper(GPdist, sample_data(physeq)$BSpecies)
+permutest(beta)
+boxplot(beta)
+```
+
+####Species
+``` {r jaccardPERMANOVAs,warning=FALSE}
+GPdist=phyloseq::distance(physeq, "jaccard")
+#MONMDS= ordinate(physeq, "NMDS",GPdist)
+```
+
+```{r}
+adonis(GPdist ~ BSpecies*Month, as(sample_data(physeq), "data.frame"))
+```
+
+####RTHA subset
+``` {r jaccardPERMANOVAs2,warning=FALSE}
+RTHAPhyseq<-subset_samples(physeq,BSpecies=="RTHA")
+GPdist=phyloseq::distance(RTHAPhyseq, "jaccard")
+#MONMDS= ordinate(physeq, "NMDS",GPdist)
+```
+
+```{r}
+adonis(GPdist ~ Month, as(sample_data(RTHAPhyseq), "data.frame"))
+adonis(GPdist ~ Year, as(sample_data(RTHAPhyseq), "data.frame"))
+
+```
+
+
+###Bray-curtis
+####Homogenieity of Multivariate Dispersions
+```{r, warning=FALSE}
+GPdist=phyloseq::distance(physeq, "bray")
+beta=betadisper(GPdist, sample_data(physeq)$BSpecies)
+permutest(beta)
+boxplot(beta)
+```
+
+
+``` {r brayPERMANOVAs,warning=FALSE}
+GPdist=phyloseq::distance(physeq, "bray")
+#MONMDS= ordinate(physeq, "NMDS",GPdist)
+```
+
+```{r}
+adonis(GPdist ~ BSpecies*Month, as(sample_data(physeq), "data.frame"))
+```
+
+##Random Forest {.tabset}
+###By BSpecies
+```{r Forest1}
+options(max.print=1000000)
+ForestData=GenusLevel#Change this one so you dont have to rewrite all variables
+predictors=t(otu_table(ForestData))
+response <- as.factor(sample_data(ForestData)$BSpecies)
+rf.data <- data.frame(response, predictors)
+MozzieForest <- randomForest(response~., data = rf.data, ntree = 1000)
+print(MozzieForest)#returns overall Random Forest results
+imp <- importance(MozzieForest)#all the steps that are imp or imp. are building a dataframe that contains info about the taxa used by the Random Forest testto classify treatment 
+imp <- data.frame(predictors = rownames(imp), imp)
+imp.sort <- arrange(imp, desc(MeanDecreaseGini))
+imp.sort$predictors <- factor(imp.sort$predictors, levels = imp.sort$predictors)
+imp.20 <- imp.sort[1:20, ]
+ggplot(imp.20, aes(x = predictors, y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity", fill = "indianred") +
+  coord_flip() +
+  ggtitle("Most important genera for classifying  samples\n by Bird Species")#\n in a string tells it to start a new line
+#imp.20$MeanDecreaseGini
+otunames <- imp.20$predictors
+r <- rownames(tax_table(ForestData)) %in% otunames
+kable(tax_table(ForestData)[r, ])#returns a list of the most important predictors for Random Forest Classification
+```
+
