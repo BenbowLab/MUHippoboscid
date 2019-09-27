@@ -4,9 +4,10 @@ author: "JReceveur"
 output: 
   html_document:
     code_folding: hide
-toc: true
-toc_depth: 3
-toc_float: true
+    toc: true
+    toc_depth: 3
+    toc_float: true
+
 ---
   
   ```{r setup, include=FALSE}
@@ -86,7 +87,6 @@ biom=import_biom("HippoWTax9.18.19.biom",parseFunction= parse_taxonomy_silva_128
 #tax_table(biom) <- tax_table(biom)[,-c(5:10,14)]#remove dummy ranks
 
 metadata=read.table("HippoMetadataWDiversity9.18.19.tsv",header = TRUE)
-#metadata$BSpecies = factor(metadata$BSpecies, levels = c("SubmergedFresh","EarlyFloating","Floatingdecay","Advancedfloatingdecay","SunkenRemains")) #fixes x-axis labels
 
 tree=read_tree("tree9.18.19.nwk")
 
@@ -773,3 +773,73 @@ r <- rownames(tax_table(ForestData)) %in% otunames
 kable(tax_table(ForestData)[r, ])#returns a list of the most important predictors for Random Forest Classification
 ```
 
+##RTHA and COHA subsets
+
+###RTHA
+```{r}
+RTHA<-subset_samples(physeq, BSpecies=="RTHA")
+RTHA
+
+GPr  = transform_sample_counts(RTHA, function(x) x / sum(x) ) #transform samples based on relative abundance
+PhylumAll=tax_glom(GPr, "Phylum")
+
+PhylumLevel = filter_taxa(PhylumAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 0.1%
+PhylumLevel
+FamilyAll=tax_glom(GPr,"Family")
+FamilyLevel = filter_taxa(FamilyAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 1%
+GenusAll=tax_glom(GPr,"Genus")
+GenusLevel = filter_taxa(GenusAll, function(x) mean(x) > 3e-3, TRUE) #filter out any taxa lower tha 1%
+
+
+df <- psmelt(FamilyLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Family", "Month"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+
+Trtdata
+compare_means(Abundance~Month, data=df,group.by="Family",method = "kruskal.test",p.adjust.method="fdr")
+Trtdata$Month = factor(Trtdata$Month, levels = c("Sept","Oct","Nov")) #fixes x-axis labels
+
+ggplot(Trtdata, aes(x=Month,y=mean))+geom_bar(aes(fill = Family),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cdataplot=ggplot(Trtdata, aes(x=Month,y=mean))+geom_bar(aes(fill = Family),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+geom_errorbar(aes(ymin=mean-se,ymax=mean+se))+facet_wrap(~Family)#+scale_fill_manual(values=cbPalette)
+cdataplot
+```
+
+###COHA
+```{r}
+COHA<-subset_samples(physeq, BSpecies=="COHA")
+COHA
+
+GPr  = transform_sample_counts(COHA, function(x) x / sum(x) ) #transform samples based on relative abundance
+PhylumAll=tax_glom(GPr, "Phylum")
+
+PhylumLevel = filter_taxa(PhylumAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 0.1%
+PhylumLevel
+FamilyAll=tax_glom(GPr,"Family")
+FamilyLevel = filter_taxa(FamilyAll, function(x) mean(x) > 1e-4, TRUE) #filter out any taxa lower tha 1%
+GenusAll=tax_glom(GPr,"Genus")
+GenusLevel = filter_taxa(GenusAll, function(x) mean(x) > 1e-3, TRUE) #filter out any taxa lower tha 1%
+
+
+df <- psmelt(GenusLevel)
+df$Abundance=df$Abundance*100
+Trtdata <- ddply(df, c("Genus", "Month"), summarise,
+                 N    = length(Abundance),
+                 mean = mean(Abundance),
+                 sd   = sd(Abundance),
+                 se   = sd / sqrt(N)
+)
+Trtdata$Month = factor(Trtdata$Month, levels = c("Sept","Oct","Nov")) #fixes x-axis labels
+head(Trtdata)
+compare_means(Abundance~Month, data=df,group.by="Genus",method = "kruskal.test",p.adjust.method="fdr")
+
+ggplot(Trtdata, aes(x=Month,y=mean))+geom_bar(aes(fill = Genus),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cdataplot=ggplot(Trtdata, aes(x=Month,y=mean))+geom_bar(aes(fill = Genus),colour="black", stat="identity")+xlab("Month")+ylab("Relative Abundance (> 0.1%)") + theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+theme(axis.title.x=element_blank())+ theme(axis.text.x = element_text(angle = 45, hjust = 1))+geom_errorbar(aes(ymin=mean-se,ymax=mean+se))+facet_wrap(~Genus)#+scale_fill_manual(values=cbPalette)
+cdataplot
+```
